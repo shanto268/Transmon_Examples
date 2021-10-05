@@ -1,6 +1,10 @@
 from scipy import *
 from qutip import *
 from matplotlib.pyplot import *
+from numpy import pi
+import math
+from scipy.signal import *
+from two_transmons.ParallelCalculations import *
 
 class ZPulse:
     
@@ -22,10 +26,19 @@ class ZPulse:
         normalized = raw/max(raw)
         return normalized
     
-    def waveform(self):
+    def waveform1(self):
         offset = self._params["phi_offset"]
         base = self._params["phi_base_level"]
         return self._normalized_pulse()*offset+base
     
+    def waveform (self):        
+        sos=butter(5,self._params['frequency'],btype='lowpass', output='sos')
+        filtered=sosfilt(sos,self.waveform1())
+        return filtered
+        #return self.waveform1()
+    
     def plot(self):
         plot(self._Ts, self.waveform())
+    def plot_ideal(self):
+        plot(self._Ts,self.waveform1())
+       

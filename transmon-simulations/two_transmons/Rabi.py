@@ -2,24 +2,24 @@ from scipy import *
 from qutip import *
 from matplotlib.pyplot import *
 
-class Rabi:
+class Rabi:    #Gleb's class
     
     def __init__(self, dts, Ts, qubit_to_drive, readout_resonator):
         self._dts = dts
         self._Ts = Ts
         
-        self._drive_amplitude = 0.01*2*pi
+        self._drive_amplitude = 0.01*2*pi/2*3
         self._duration = Ts[-1]-Ts[0]
         self._qubit_to_drive = qubit_to_drive
         self._r = readout_resonator
         
  
         
-        self._rho0 = self._dts.gg_state(1/2, 1/2)
+        self._rho0 = self._dts.gg_state(0, 1/2)
         self._rho0 = self._rho0*self._rho0.dag()
         
     def build_waveforms(self):
-        waveform1 = ones_like(self._Ts)*1/2
+        waveform1 = ones_like(self._Ts)*0
         waveform2 = ones_like(self._Ts)*1/2
         return waveform1, waveform2
   
@@ -27,17 +27,17 @@ class Rabi:
     def run(self):
         options = Options(nsteps=20000, store_states=True)
         
-        self._c_ops =  self._dts.c_ops(1/2, 1/2)
+        self._c_ops =  self._dts.c_ops(0, 1/2)
         
         self._H = self._dts.H_td_diag_approx(*self.build_waveforms())
         
-        E0 = self._dts.gg_state(1/2, 1/2, True)[1]
-        E10 = self._dts.e_state(1/2, 1/2, 1, True)[1]
-        E01 = self._dts.e_state(1/2, 1/2, 2, True)[1]
+        E0 = self._dts.gg_state(0, 1/2, True)[1]
+        E10 = self._dts.e_state(0, 1/2, 1, True)[1]
+        E01 = self._dts.e_state(0, 1/2, 2, True)[1]
         self._freqs = ((E10 - E0)/2/pi, (E01 - E0)/2/pi)
         
         amplitudes = [0,0]
-        amplitudes[self._qubit_to_drive-1] = 0.01*2*pi
+        amplitudes[self._qubit_to_drive-1] = 0.01*2*pi/2*3
         self._H += self._dts.Hdr(amplitudes, 
                            (self._duration, self._duration), 
                            (0, 0),

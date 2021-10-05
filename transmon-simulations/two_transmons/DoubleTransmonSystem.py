@@ -31,8 +31,8 @@ class DoubleTransmonSystem:
         return tensor(*mask)
 
     def H(self, phi1, phi2):
-        H = self.two_qubit_operator(qubit1_operator=self._tr1.H_diag_trunc(phi1)) + \
-            self.two_qubit_operator(qubit2_operator=self._tr2.H_diag_trunc(phi2)) + \
+        H = self.two_qubit_operator(qubit1_operator=self._tr1.H_diag_trunc_approx(phi1)) + \
+            self.two_qubit_operator(qubit2_operator=self._tr2.H_diag_trunc_approx(phi2)) + \
             self.Hint(phi1, phi2)
         return H - H[0, 0]
 
@@ -106,11 +106,13 @@ class DoubleTransmonSystem:
         else:
             return self._g * (half + half.dag())
 
-    def Hdr(self, amplitudes, durations, starts, phases):
-        Hdr1 = self._tr1.Hdr_cont(amplitudes[0], durations[0], starts[0], phases[0])
+    def Hdr(self, amplitudes, durations, starts, phases, freqs):
+        #Hdr1 = self._tr1.Hdr_cont(amplitudes[0], durations[0], starts[0], phases[0])
+        Hdr1 = self._tr1.Hdr(amplitudes[0], durations[0], starts[0], phases[0], freqs[0])
         Hdr1 = [self.two_qubit_operator(qubit1_operator=Hdr1[0]), Hdr1[1]]
 
-        Hdr2 = self._tr2.Hdr(amplitudes[1], durations[1], starts[1], phases[1])
+        #Hdr2 = self._tr2.Hdr(amplitudes[1], durations[1], starts[1], phases[1])
+        Hdr2 = self._tr2.Hdr(amplitudes[1], durations[1], starts[1], phases[1], freqs[1])
         Hdr2 = [self.two_qubit_operator(qubit2_operator=Hdr2[0]), Hdr2[1]]
 
         return [Hdr1] + [Hdr2]
@@ -147,7 +149,7 @@ class DoubleTransmonSystem:
             model_state = self.two_qubit_operator(self._tr1.g_state(), self._tr2.e_state())
 
         for idx, evec in enumerate(evecs):
-            if abs((evec.dag() * model_state).full()) > 0.9:
+            if abs((evec.dag() * model_state).full()) > 0.6:
                 evec = self._remove_global_phase(evec)
                 return evec if not energy else (evec, evals[idx])
 

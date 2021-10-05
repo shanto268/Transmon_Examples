@@ -12,10 +12,10 @@ class VacuumRabiSimulation:
         self._params = params
         self._r = readout_resonator
         
-        self._rho0 = dts.e_state(1/2, 1/2, 1)
-#         self._rho0 = 1/2*(dts.gg_state(1/2, 1/2)+dts.e_state(1/2, 1/2, 1)+dts.e_state(1/2, 1/2, 2)+dts.ee_state(1/2, 1/2))
+        self._rho0 = dts.e_state(0, 1/2, 1) 
+#       self._rho0 = 1/2*(dts.gg_state(0, 1/2)+dts.e_state(0, 1/2, 1)+dts.e_state(0, 1/2, 2)+dts.ee_state(0, 1/2))
         self._rho0 = self._rho0*self._rho0.dag()
-#         self._rho0 = tensor(dts._tr1.e_state(params["phi_base_level"]), dts._tr2.g_state(1/2))
+#       self._rho0 = tensor(dts._tr1.e_state(params["phi_base_level"]), dts._tr2.g_state(1/2))
    
     def build_waveforms(self):
         waveform1 = ZPulse(self._Ts, self._params).waveform()
@@ -28,7 +28,7 @@ class VacuumRabiSimulation:
         self._c_ops = []  #dts.c_ops(1/2, 1/2)
         
         self._result = mesolve(self._dts.H_td_diag_approx(*self.build_waveforms()), self._rho0, 
-                               self._Ts, c_ops = self._c_ops, progress_bar=True, options=options)
+                               self._Ts, c_ops = self._c_ops, progress_bar=None, options=options)
         return self._result
     
     def visualize_projections(self):
@@ -45,8 +45,8 @@ class VacuumRabiSimulation:
             projections1.append(expect(state, state1))
             projections2.append(expect(state, state2))
         
-        plt.plot(self._Ts, np.abs(projections1))
-        plt.plot(self._Ts, np.abs(projections2))
+        plot(self._Ts, np.abs(projections1))
+        plot(self._Ts, np.abs(projections2))
         
     def visualize_joint_readout(self, f):
         data = array([expect(state, self._r.measurement_operator(f, self._r.get_dipsersive_shifts())) \

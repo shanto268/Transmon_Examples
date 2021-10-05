@@ -1,6 +1,6 @@
 import numpy as np
 from qutip import *
-from numpy import pi, sqrt, abs
+from numpy import pi, sqrt
 
 
 class Transmon:
