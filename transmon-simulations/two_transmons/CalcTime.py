@@ -20,7 +20,7 @@ params = {
     "frequency": 0.2
 }
 """
-durations = linspace(20,100,160)
+durations = linspace(40,120,100)
 
 def calc_time (farg):
     params=farg['params']
@@ -50,6 +50,7 @@ def calc_time (farg):
         Ts = linspace(params['start'],params["finish"],params['t_points'])      
         params1 = params
         params1['phi_offset'] = phi
+        params1['phi_base_level']=0
         params1['duration'] = dur
         VRS = VacuumRabiSimulation(dts, Ts, params1, r)
         result = VRS.run()
@@ -73,7 +74,7 @@ def calc_projections(farg):
     projections2 = []
     result=[]
 
-    with Pool(4) as p:
+    with Pool(24) as p:
         result = []
         for item in tqdm(p.imap(calc_time, farg)):
             result.append(item)
@@ -83,16 +84,32 @@ def calc_projections(farg):
         projections2.append(ind['projections2'])
     return (projections1, projections2)
 def cook_farg(Nphi,freq):
-    phis = linspace(0.41, 0.53, Nphi)
+    phis = linspace(0.44, 0.52, Nphi)
     params = {
-        'duration': 26.65, #vaccuum rabi time, derived from simulation
-        'tanh_sigma': .1,
-        "start": 60,
-        "finish": 200,
-        "phi_base_level": 0,
-        'phi_offset': 0.4664,
-        "t_points": 10000,
-        "frequency": freq
+        'duration': 47.0*5, #vaccuum rabi time, derived from simulation
+        #'tanh_sigma': 0.1,
+        'tanh_sigma': 0.5,
+        "start": 200, #200
+        "finish": 550, #300
+        "phi_base_level": 0.4479,
+        #'phi_offset': 0.4779,
+        'phi_offset': 0.03,
+        "t_points": 10001,
+        "t_zgate" : 10.04, #check that T = 12.53ns is period of Z-gate
+        "t_zgate2": 9.8,   #check that T = 8.77ns is period of Z-gate
+        't_zgate_2iswap': 11.60,
+        't_zgate2_2iswap': 11.60,
+        
+        #"phiz_offset" : 0.1,
+        "phiz_offset" : -0.01,
+        "phi2z_base_level" :0.5,
+        "phi2z_offset" : 0.03,
+        #"phi2z_offset" : -0.05,
+        "frequency": freq,
+        "phi_offset_cphase":0.4425,
+        "start_cphase": 180,
+        "finish_cphase": 200,
+        'drive_amplitude':0.01*2*pi/2*3/5
     }
     farg=[]
 
