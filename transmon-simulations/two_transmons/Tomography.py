@@ -184,13 +184,18 @@ class Tomography:
     def build_waveforms_2iswap(self):
         signal = ZPulse(self._Ts, self._params)
         waveform1_1 = signal.waveform_iswap_zgate(1)
-        waveform1_2 = signal.waveform_iswap_zgate(1, self._params['start'] + 300, self._params['start']+300 + self._params['duration'], 
+        waveform1_2 = signal.waveform_iswap_zgate(1, self._params['start'] + 300, self._params['start']+250 + self._params['duration'], 
                                                   self._params['t_zgate_2iswap'] )
         #waveform1 = ones_like(self._Ts)*0
         waveform2_1 = signal.waveform_iswap_zgate(2)
         waveform2_2 = signal.waveform_iswap_zgate(2, self._params['start'] + 300, self._params['start']+300 + self._params['duration'], 
                                                   self._params['t_zgate2_2iswap'] )
         return waveform1_1 + waveform1_2 - self._params["phi_base_level"], waveform2_1 + waveform2_2 - self._params["phi2z_base_level"]
+    
+    def build_const_waveforms(self):
+        waveform1 = ones_like(self._Ts)*self._params['phi_base_level']
+        waveform2 = ones_like(self._Ts)*self._params['phi2z_base_level']
+        return waveform1, waveform2
        
         
     def run(self):
@@ -236,11 +241,13 @@ class Tomography:
                                          [False]*len(self._2q_rotations), num_cpus = num_cpus)
     
     
-    def run_iswap_test_step_parallel (self, rotations, iswap2 = False, full_output = False): #возвращает матрицу плотности после гейта в                                                                                                    представлении вз-я
+    def run_iswap_test_step_parallel (self, rotations, iswap2 = False, constant_flows = False, full_output = False): #возвращает матрицу плотности после гейта в                                                                                                    представлении вз-я
         dur1, dur2 = rotations[0][0], rotations[1][0]
         phi1, phi2 = rotations[0][1], rotations[1][1]
         if iswap2 :
             waveform1, waveform2 = self.build_waveforms_2iswap()
+        elif constant_flows:
+            waveform1, waveform2 = self.build_const_waveforms()
         else:
             waveform1, waveform2 = self.build_waveforms()      
         H_new = self._dts.H_iswap_RF_RWA_td(waveform1, waveform2, self._params, rotations = rotations)
