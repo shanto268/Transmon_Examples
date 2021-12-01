@@ -2,6 +2,7 @@ from single_transmon.Transmon import *
 from qutip import *
 from itertools import product
 from numpy import zeros, array, where, ones_like
+from matplotlib.pyplot import *
 
 class TransmonChain:
 
@@ -147,7 +148,26 @@ class TransmonChain:
         
         return [[H1_trunc,H1_coeff]] + [[H2_trunc, H2_coeff]] + [[Huu_trunc, ones_like(H1_coeff)]]
         
-        
+    def plot_chain_dynamic(self, result):
+        Ts = self._Ts
+        fig, axes = subplots (3,1, figsize = (7,6))
+        axes[0].plot(Ts, result.expect[0], label = 'z1',)
+        axes[0].plot(Ts, result.expect[1], label = 'z2')
+        axes[0].plot(Ts, result.expect[2], label = 'z3')
+        axes[0].plot(Ts, result.expect[3], label = 'z4')
+        axes[1].plot(Ts, result.expect[4], label = 'x1')
+        axes[1].plot(Ts, result.expect[5], label = 'x2')
+        axes[1].plot(Ts, result.expect[6], label = 'x3')
+        axes[1].plot(Ts, result.expect[7], label = 'x4')
+        axes[2].plot(Ts, result.expect[8], label = 'y1')
+        axes[2].plot(Ts, result.expect[9], label = 'y2')
+        axes[2].plot(Ts, result.expect[10], label = 'y3')
+        axes[2].plot(Ts, result.expect[11], label = 'y4')
+        for ax in axes:
+            ax.set_ylim((-1.05,1.05))
+            ax.legend()
+            ax.grid()
+        return fig, axes
         
         
     
@@ -157,15 +177,18 @@ class TransmonChain:
         op1 = self._transmons[i].n(self._phi[i]).data.copy()
         op2 = self._transmons[j].n(self._phi[j]).data.copy()
         # zeroing triangles
-        for i in range(op1.shape[0]):
-            for j in range(op1.shape[1]):
-                if i < j:
-                    op1[i, j] = 0
-                if i > j:
-                    op2[i, j] = 0
+        #print (op1)
+        #print (op2)
+        for k in range(op1.shape[0]):
+            for l in range(op1.shape[1]):
+                if k < l:
+                    op1[k, l] = 0
+                if k > l:
+                    op2[k, l] = 0
         chain_operator1[i] = Qobj(op1, dims = [[3],[3]])
         chain_operator1[j] = Qobj(op2, dims = [[3],[3]])
-        half = tensor(*chain_operator1)  
+        half = tensor(*chain_operator1) 
+        #print (half)
         half_trunc = self.truncate_to_low_population_subspace(half)
         return [[self._J[i] * half_trunc, "exp(-1j*(%f)*t)"%offset],[self._J[i] * half_trunc.dag(), "exp(1j*(%f)*t)"%offset]]
 

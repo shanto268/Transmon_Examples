@@ -93,10 +93,10 @@ def cook_farg(Nphi,freq):
         "finish": 550, #300
         "phi_base_level": 0.4479,
         #'phi_offset': 0.4779,
-        'phi_offset': 0.03,
+        'phi_offset': 0.03 + 0.00003,
         "t_points": 10001,
-        "t_zgate" : 10.04, #check that T = 12.53ns is period of Z-gate
-        "t_zgate2": 9.8,   #check that T = 8.77ns is period of Z-gate
+        "t_zgate" : 10.04, 
+        "t_zgate2": 9.8+0.15,   
         't_zgate_2iswap': 11.60,
         't_zgate2_2iswap': 11.60,
         
