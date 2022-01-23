@@ -6,6 +6,7 @@ import single_transmon.Transmon
 from single_transmon.Transmon import *
 from ReadoutResonator import *
 from qutip import *
+from two_transmons.ZPulse import *
 
 
 def calculate (phi):
