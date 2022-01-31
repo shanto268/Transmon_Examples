@@ -1,0 +1,7 @@
+*.py[cod]
+/transmon-simulations/__pycache__
+qobjevo*.py
+
+/.idea
+# Sphinx documentation
+docs/_build/
