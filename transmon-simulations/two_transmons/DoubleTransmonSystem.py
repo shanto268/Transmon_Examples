@@ -1,11 +1,10 @@
-from scipy import *
-from qutip import *
+import scipy
+import qutip as qp
+from single_transmon import
 from matplotlib.pyplot import *
 from tqdm import *
 
-
 class DoubleTransmonSystem:
-
     def __init__(self, tr1, tr2, g):
         self._tr1 = tr1
         self._tr2 = tr2
@@ -21,14 +20,14 @@ class DoubleTransmonSystem:
 
     def two_qubit_operator(self, qubit1_operator=None, qubit2_operator=None):
 
-        mask = [identity(self._tr1.get_Ns()), identity(self._tr2.get_Ns())]
+        mask = [qp.identity(self._tr1.get_Ns()), qpidentity(self._tr2.get_Ns())]
 
         if qubit1_operator is not None:
             mask[0] = qubit1_operator
         if qubit2_operator is not None:
             mask[1] = qubit2_operator
 
-        return tensor(*mask)
+        return qp.tensor(*mask)
 
     def H(self, phi1, phi2):
         H = self.two_qubit_operator(qubit1_operator=self._tr1.H_diag_trunc(phi1)) + \
