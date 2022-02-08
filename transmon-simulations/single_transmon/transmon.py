@@ -2,6 +2,9 @@ import numpy as np
 import qutip as qp
 import bisect
 
+# TODO: make everything to be single package "QHSim"
+from .tmon_eigensystem import TmonEigensystem
+
 class Transmon:
     def __init__(self, Ec=0.6, Ej=28, alpha=0.2, d=None, gamma_rel=0.0,
                  gamma_phi=0.0,
@@ -86,10 +89,10 @@ class Transmon:
 
         self._N_trunc = N_trunc
 
-        self._hams_phi_cache = []
+        self._ops_phi_cache: list[TmonEigensystem] = []
 
     def clear_caches(self):
-        self._hams_phi_cache = []
+        self._ops_phi_cache = []
 
     def _truncate(self, operator, n_trunc=None):
         if n_trunc is not None:
@@ -124,7 +127,9 @@ class Transmon:
             # evals, evecs = H_fixed_flux.eigenstates()
             evals, evecs = h_charge_basis.eigenstates()
             h = self._truncate(h_charge_basis.transform(evecs))
-            self._H_diag_trunc_cache[phi] = h - h[0, 0]
+            te = TmonEigensystem(Ec=self._Ec, Ej=self._Ej,
+                                 alpha=self._alpha)
+            self._ops_phi_cache.insort(h - h[0, 0])
             return self._H_diag_trunc_cache[phi]
 
     def H_uu(self, freq):
@@ -211,13 +216,16 @@ class Transmon:
             raise NotImplementedError
 
         try:
-            return self._n_cache[phi]
+            return self._ops_phi_cache[phi]
         except:
             H_charge_basis = self.h_c() + self.h_j(phi)
             evals, evecs = H_charge_basis.eigenstates()
             self._n_cache[phi] = self._truncate(
                 qp.Qobj(abs(qp.charge(self._Nc).transform(evecs))))
             return self._n_cache[phi]
+
+def foo(args):
+    return args["phi_offset"]
 
     '''
         def Hj_td(self, phi_waveform):
@@ -374,6 +382,5 @@ class Transmon:
     def _phi_coeff_str (self, waveform): #takes waveform string and gives phicoeff string
         phi_coeff = "np.power( ( np.cos( " + waveform  + " * pi) )**2 + " + "(%f * np.sin( "%self._d + waveform + " * pi)) ** 2 ,0.25) "
         return phi_co
+'''
 
-    
-    
