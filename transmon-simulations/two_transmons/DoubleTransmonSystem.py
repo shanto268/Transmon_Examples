@@ -30,14 +30,14 @@ class DoubleTransmonSystem:
         return qp.tensor(*mask)
 
     def H(self, phi1, phi2):
-        H = self.two_qubit_operator(qubit1_operator=self._tr1.H_diag_trunc(phi1)) + \
-            self.two_qubit_operator(qubit2_operator=self._tr2.H_diag_trunc(phi2)) + \
+        H = self.two_qubit_operator(qubit1_operator=self._tr1.h_diag_trunc(phi1)) + \
+            self.two_qubit_operator(qubit2_operator=self._tr2.h_diag_trunc(phi2)) + \
             self.Hint(phi1, phi2)
         return H - H[0, 0]
 
     def H_RF_RWA(self, phi1, phi2, rotating_frame_freq):
-        H = self.two_qubit_operator(qubit1_operator=self._tr1.H_diag_trunc(phi1)) + \
-            self.two_qubit_operator(qubit2_operator=self._tr2.H_diag_trunc(phi2)) + \
+        H = self.two_qubit_operator(qubit1_operator=self._tr1.h_diag_trunc(phi1)) + \
+            self.two_qubit_operator(qubit2_operator=self._tr2.h_diag_trunc(phi2)) + \
             self.Hint_RF_RWA(phi1, phi2)
 
         return H - H[0, 0] - self._Huu(rotating_frame_freq)
@@ -145,12 +145,12 @@ class DoubleTransmonSystem:
                self.Hint_RF_RWA(0.4770, 0.5)
 
     def Hc(self):
-        return self.two_qubit_operator(qubit1_operator=self._tr1.Hc()) + \
-               self.two_qubit_operator(qubit2_operator=self._tr2.Hc())
+        return self.two_qubit_operator(qubit1_operator=self._tr1.h_c()) + \
+               self.two_qubit_operator(qubit2_operator=self._tr2.h_c())
 
     def Hj(self, phi1, phi2):
-        return self.two_qubit_operator(qubit1_operator=self._tr1.Hj(phi1)) + \
-               self.two_qubit_operator(qubit2_operator=self._tr2.Hj(phi2))
+        return self.two_qubit_operator(qubit1_operator=self._tr1.h_j(phi1)) + \
+               self.two_qubit_operator(qubit2_operator=self._tr2.h_j(phi2))
 
     def Hj_td(self, waveform1, waveform2):
         Hj_td1 = self._tr1.Hj_td(waveform1)
