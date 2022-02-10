@@ -1,7 +1,7 @@
 import setuptools
 
 setuptools.setup(
-    name="transmon_simulations",
+    name="transmon-simulations",
     py_modules=["single_transmon", "transmon_chain", "two_transmons"],
     version="0.1.2",
     author="Gleb Fedorov",
