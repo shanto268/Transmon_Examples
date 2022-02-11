@@ -49,7 +49,7 @@ class Transmon:
             flux phase of the transmon in radians (from `0` to `2 pi`).
         gamma_rel : float
             longitudal relaxation frequency.
-            For lindblad operator expressed as
+            For Lindblad operator expressed as
             `sqrt(gamma_rel/2) \sigma_m`.
             And lindblad entry is defiened as `2 L p L^+ - {L^+ L,p}`.
         gamma_phi : float
@@ -115,7 +115,7 @@ class Transmon:
     ''' HELP FUNCTIONS SECTION START '''
 
     def _phi_coeff(self, phi):
-        return np.sqrt(
+        return np.sign(np.cos(phi))*np.sqrt(
             1 + self.alpha ** 2 + 2 * self.alpha * np.cos(phi)
         )
 
@@ -135,26 +135,31 @@ class Transmon:
     def calc_Hj_cb(self, phi):
         """
         Calculate Josephson energy in charge bassis.
+        phi = pi Flux/Flux_quantum
         Returns
         -------
         qp.Qobj
         """
-        scalar = - np.sign(np.cos(phi/2))*self.Ej * self._phi_coeff(phi)\
+        import scipy.stats
+        scipy.stats.norm()
+        scalar = - self.Ej * self._phi_coeff(phi)\
                  / 2
-        phi0 = np.arctan(self.d * np.tan(phi/2))
-        op = np.exp(1j * phi0) * raising_op(
+        phi0 = np.arctan(self.d * np.tan(phi))
+        op = np.exp(-1j * phi0) * raising_op(
             self.space_dim) + \
-             np.exp(-1j * phi0) * lowering_op(self.space_dim)
+             np.exp(1j * phi0) * lowering_op(self.space_dim)
         return scalar * qp.Qobj(op)
 
     def calc_Hj_cb2(self, phi):
         """
         Calculate Josephson energy in charge bassis.
+        phi = pi Flux/Flux_quantum
         Returns
         -------
         qp.Qobj
         """
-        scalar = - self.Ej * self._phi_coeff(phi) / 2
+        scalar = - np.sign(np.cos(phi))*self.Ej * \
+            self._phi_coeff(phi) / 2
         op = qp.tunneling(self.space_dim, 1)
         return scalar * op
 
@@ -209,14 +214,13 @@ class Transmon:
                         ctr = True
                     H_full = self.calc_Hfull_cb2(sol_key.phi)
                 n_full = qp.charge(self.Nc)
-                evals, evecs = H_full.eigenstates(sort="low",
-                                                  eigvals=self.eigspace_N)
+                evals, evecs = H_full.eigenstates(sort="low")
 
                 # TODO: parallelize
                 H_op = my_transform(H_full, evecs)
                 n_op = my_transform(n_full, evecs)
 
-                H_op = H_op - H_op[0, 0] * qp.identity(self.eigspace_N)
+                H_op = H_op - H_op[0, 0] * qp.identity(self.space_dim)
                 solution = TmonEigensystem(
                     self.Ec, self.Ej, self.alpha,
                     phi=sol_key.phi, evecs=evecs,
