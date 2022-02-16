@@ -132,7 +132,7 @@ class Transmon:
         Hc = self.Ec * qp.charge(self.Nc) ** 2
         return Hc
 
-    def calc_Hj_cb(self, phi):
+    def calc_Hj_cb2(self, phi):
         """
         Calculate Josephson energy in charge bassis.
         phi = pi Flux/Flux_quantum
@@ -150,7 +150,7 @@ class Transmon:
              np.exp(1j * phi0) * lowering_op(self.space_dim)
         return scalar * qp.Qobj(op)
 
-    def calc_Hj_cb2(self, phi):
+    def calc_Hj_cb(self, phi):
         """
         Calculate Josephson energy in charge bassis.
         phi = pi Flux/Flux_quantum
@@ -163,7 +163,7 @@ class Transmon:
         op = qp.tunneling(self.space_dim, 1)
         return scalar * op
 
-    def calc_Hfull_cb(self, phi):
+    def calc_Hfull_cb2(self, phi):
         """
         Calculate total Hamiltonian from class parameters
 
@@ -171,12 +171,12 @@ class Transmon:
         -------
         qp.Qobj
         """
-        return self.calc_Hc_cb() + self.calc_Hj_cb(phi)
-
-    def calc_Hfull_cb2(self, phi):
         return self.calc_Hc_cb() + self.calc_Hj_cb2(phi)
 
-    def solve(self, use=1):
+    def calc_Hfull_cb(self, phi):
+        return self.calc_Hc_cb() + self.calc_Hj_cb(phi)
+
+    def solve(self, case=1):
         """
         Solve eigensystem problem and return operators in
 
@@ -203,14 +203,14 @@ class Transmon:
                 solution = self._eigsys_sol_cache[sol_key]
                 result.append(solution)
             except KeyError:
-                if use == 1:
+                if case == 1:
                     if not ctr:
-                        print("use 1")
+                        print("case 1")
                         ctr = True
                     H_full = self.calc_Hfull_cb(sol_key.phi)
                 else:
                     if not ctr:
-                        print("use 2")
+                        print("case 2")
                         ctr = True
                     H_full = self.calc_Hfull_cb2(sol_key.phi)
                 n_full = qp.charge(self.Nc)
