@@ -31,8 +31,9 @@ class TmonEigensystem:
             `d = (1 - alpha)/(1 + alpha)`. Used in Koch.
         phi: float
             flux phase of the transmon in radians (from `0` to `2 pi`).
+            phi = 2*pi * Flux/Flux_quantum
         Nc : int
-            Maximum cooper pair number in charge basis (>=0).
+            Maximum absolute cooper pair number in charge basis (>=0).
             Charge basis size is `2*Nc + 1`.
         evecs : list[qp.Qobj]
             list of ket objects representing eigenvectors of a problem.

@@ -1,6 +1,6 @@
 import numpy as np
 import qutip as qp
-from transmon_simulations_lib.helper_ops import raising_op, lowering_op
+from transmon_simulations_lib.custom_ops import raising_op, lowering_op
 import bisect
 
 from collections import namedtuple
@@ -48,7 +48,7 @@ class Transmon:
         phi: float
             flux phase of the transmon in radians (from `0` to `2 pi`).
         gamma_rel : float
-            longitudal relaxation frequency.
+            longitudal relaxation speed in GHz.
             For Lindblad operator expressed as
             `sqrt(gamma_rel/2) \sigma_m`.
             And lindblad entry is defiened as `2 L p L^+ - {L^+ L,p}`.
@@ -115,8 +115,8 @@ class Transmon:
     ''' HELP FUNCTIONS SECTION START '''
 
     def _phi_coeff(self, phi):
-        return np.sign(np.cos(phi))*np.sqrt(
-            1 + self.alpha ** 2 + 2 * self.alpha * np.cos(phi)
+        return np.sign(np.cos(phi/2))*np.sqrt(
+            1 + self.alpha ** 2 + 2 * self.alpha * np.cos(phi/2)
         )
 
     ''' HELP FUNCTIONS SECTION END '''
@@ -135,16 +135,16 @@ class Transmon:
     def calc_Hj_cb2(self, phi):
         """
         Calculate Josephson energy in charge bassis.
-        phi = pi Flux/Flux_quantum
+        phi = 2*pi Flux/Flux_quantum
         Returns
         -------
         qp.Qobj
         """
         import scipy.stats
         scipy.stats.norm()
-        scalar = - self.Ej * self._phi_coeff(phi)\
-                 / 2
-        phi0 = np.arctan(self.d * np.tan(phi))
+        scalar = - self.Ej * self._phi_coeff(phi/2)\
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       / 2
+        phi0 = np.arctan(self.d * np.tan(phi/2))
         op = np.exp(-1j * phi0) * raising_op(
             self.space_dim) + \
              np.exp(1j * phi0) * lowering_op(self.space_dim)
@@ -158,7 +158,7 @@ class Transmon:
         -------
         qp.Qobj
         """
-        scalar = - np.sign(np.cos(phi))*self.Ej * \
+        scalar = - np.sign(np.cos(phi/2))*self.Ej * \
             self._phi_coeff(phi) / 2
         op = qp.tunneling(self.space_dim, 1)
         return scalar * op
@@ -417,3 +417,39 @@ class Transmon:
         phi_coeff = "np.power( ( np.cos( " + waveform  + " * pi) )**2 + " + "(%f * np.sin( "%self._d + waveform + " * pi)) ** 2 ,0.25) "
         return phi_co
 '''
+
+class TDTransmon(Transmon):
+    def __init__(self, args*, kwargs*):
+        super().__init__(*args, **kwargs)
+
+
+    def calc_Hfull_cb2(self, phi):
+        """
+        Calculate total Hamiltonian from class parameters
+
+        Returns
+        -------
+        qp.Qobj
+        """
+        return self.calc_Hc_cb() + self.calc_Hj_cb2(phi)
+
+
+    def calc_Hj_cb2(self, phi, coef1, coef2):
+        """
+        Calculate Josephson energy in charge bassis.
+        phi = 2*pi Flux/Flux_quantum
+        Returns
+        -------
+        qp.Qobj
+        """
+        import scipy.stats
+        scipy.stats.norm()
+        scalar = - self.Ej * self._phi_coeff(phi / 2) \
+                 / 2
+        phi0 = np.arctan(self.d * np.tan(phi / 2))
+        op = np.exp(-1j * phi0) * raising_op(
+            self.space_dim) + \
+             np.exp(1j * phi0) * lowering_op(self.space_dim)
+        return scalar * qp.Qobj(op)
+
+
