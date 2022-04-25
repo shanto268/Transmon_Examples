@@ -7,8 +7,47 @@ import qutip as qp
 
 TmonPars = namedtuple(
     "TmonPars",
-    ["Ec", "Ej", "alpha", "phiExt1", "phiExt2", "Nc"]
+    [
+        "Ec",
+        "Ej",
+        "alpha",
+        "phiExt1",
+        "phiExt2",
+        "gamma_rel",
+        "gamma_phi"
+    ]
 )
+'''
+ Parameters
+        ----------
+        Ec: float
+            Charge energy of a qubit [GHz]
+            Explicit formula (SI): e^2/(2*C*h)*1e-9, C - capacitance,
+            h - plank constant
+        Ej: float
+            energy of the largest JJ in transmon [GHz]
+            .math
+            I_k \Pni_0 / (2 * pi * h),
+            I_k - junction critical current in SI, \Phi_0 - flux quantum.
+        alpha : float
+            asymmetry parameter. I_k1/I_k2 < 1, ration of lower critical
+            current to the larger one.
+        d: float
+            asymmetry parameter, alternative to `alpha`.
+            `d = (1 - alpha)/(1 + alpha)`. Used in Koch.
+        phi: float
+            flux phase of the transmon in radians (from `0` to `2 pi`).
+        gamma_rel : float
+            longitudal relaxation speed in GHz.
+            For Lindblad operator expressed as
+            `sqrt(gamma_rel/2) \sigma_m`.
+            And lindblad entry is defiened as `2 L p L^+ - {L^+ L,p}`.
+        gamma_phi : float
+            phase relaxation frequency.
+            For lindblad operator expressed as
+            `sqrt(gamma_phi) \sigma_m`.
+            And lindblad entry is defiened as `2 L p L^+ - {L^+ L,p}`.
+'''
 
 
 class TmonEigensystem:
@@ -29,14 +68,23 @@ class TmonEigensystem:
         evals: np.ndarray
             list for eigenvalues ordered corresponding to `evecs`
         n_op: qp.Qobj
-            cooper pair number operator in eigenbasis of a problem.
+            cooper pair number operator representation in eigenbasis
         """
         self.pars: TmonPars = tmon_pars
         self.evecs: list[qp.Qobj] = evecs
         self.evals: np.ndarray = evals
-        self.n_op = n_op
+        self.n_op: qp.Qobj = None
 
     ''' GETTER FUNCTIONS SECTION START '''
+
+    def n_op(self, truncate_N=3):
+        if self.n_op is None:
+            n_op = qp.charge(len(self.evals))
+            n_op_eigenbasis = my_transform(
+                n_op, self.evecs[:truncate_N]
+            )
+        else:
+            return self.n_op
 
     def E01(self):
         raise NotImplemented
