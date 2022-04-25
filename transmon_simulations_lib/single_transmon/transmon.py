@@ -1,15 +1,10 @@
 import numpy as np
 import qutip as qp
 from transmon_simulations_lib.custom_ops import raising_op, lowering_op
-import bisect
-
-from collections import namedtuple
-
-SolKey = namedtuple("Solkey", ["Ec", "Ej", "alpha", "phi", "Nc"])
 
 # TODO: make everything to be single package "QHSim"
 from .tmon_eigensystem import TmonEigensystem
-from .tmon_eigensystem import my_transform
+from .tmon_eigensystem import my_transform, TmonPars
 
 
 class Transmon:
@@ -97,7 +92,7 @@ class Transmon:
             raise NotImplementedError("`nonlinear_osc=True` not "
                                       "implemented yet")
 
-        self._eigsys_sol_cache: dict[SolKey, TmonEigensystem] = {}
+        self._eigsys_sol_cache: dict[TmonPars, TmonEigensystem] = {}
 
     def clear_caches(self):
         self._eigsys_sol_cache = {}
@@ -192,11 +187,11 @@ class Transmon:
         if isinstance(self.phi, np.ndarray):
             if isinstance(self.phi, list):
                 self.phi = np.array(self.phi, dtype=float)
-            sol_keys = (SolKey(self.Ec, self.Ej, self.alpha, phi,
-                               self.Nc) for phi in self.phi)
+            sol_keys = (TmonPars(self.Ec, self.Ej, self.alpha, phi,
+                                 self.Nc) for phi in self.phi)
         else:
-            sol_keys = (SolKey(self.Ec, self.Ej, self.alpha, self.phi,
-                               self.Nc),)  # 1 entry tuple
+            sol_keys = (TmonPars(self.Ec, self.Ej, self.alpha, self.phi,
+                                 self.Nc),)  # 1 entry tuple
 
         for sol_key in sol_keys:
             try:
@@ -355,8 +350,8 @@ class Transmon:
         try:
             return self._c_ops_cache[phi]
         except KeyError:
-            self._c_ops_cache[phi] = [sqrt(self._gamma_rel) * self.lowering(phi),
-                                      sqrt(self._gamma_phi) * self.rotating_dephasing(phi)]
+            self._c_ops_cache[phi] = [sqrt(self.gamma_long) * self.lowering(phi),
+                                      sqrt(self.gamma_phi) * self.rotating_dephasing(phi)]
             return self._c_ops_cache[phi]
 
     '''
@@ -418,38 +413,220 @@ class Transmon:
         return phi_co
 '''
 
-class TDTransmon(Transmon):
-    def __init__(self, args*, kwargs*):
-        super().__init__(*args, **kwargs)
-
-
-    def calc_Hfull_cb2(self, phi):
+class Transmon2():
+    def __init__(
+            self, Ec=0.6, Ej=28, alpha=0.2, d=None, phi=None,
+            gamma_long=0.0, gamma_phi=0.0,
+            Nc=2, eigspace_N=2, index=0):
         """
-        Calculate total Hamiltonian from class parameters
+        Class represents single Tmon.
+        It can calculate its spectrum in charge basis and represent
+        charge operators in its spectral basis.
+
+        Class can cache out eigenproblems solution for arbitrary mesh of
+        parameters. Cache for eigenproblems solutions can be utilized in
+        further intensive calculations.
+
+        Parameters
+        ----------
+        Ec: float
+            Charge energy of a qubit [GHz]
+            Explicit formula (SI): e^2/(2*C*h)*1e-9, C - capacitance,
+            h - plank constant
+        Ej: float
+            energy of the largest JJ in transmon [GHz]
+            .math
+            I_k \Pni_0 / (2 * pi * h),
+            I_k - junction critical current in SI, \Phi_0 - flux quantum.
+        alpha : float
+            asymmetry parameter. I_k1/I_k2 < 1, ration of lower critical
+            current to the larger one.
+        d: float
+            asymmetry parameter, alternative to `alpha`.
+            `d = (1 - alpha)/(1 + alpha)`. Used in Koch.
+        phi: float
+            flux phase of the transmon in radians (from `0` to `2 pi`).
+        gamma_rel : float
+            longitudal relaxation speed in GHz.
+            For Lindblad operator expressed as
+            `sqrt(gamma_rel/2) \sigma_m`.
+            And lindblad entry is defiened as `2 L p L^+ - {L^+ L,p}`.
+        gamma_phi : float
+            phase relaxation frequency.
+            For lindblad operator expressed as
+            `sqrt(gamma_phi) \sigma_m`.
+            And lindblad entry is defiened as `2 L p L^+ - {L^+ L,p}`.
+        Nc : int
+            Maximum cooper pair number in charge basis (>=0).
+            Charge basis size is `2*Nc + 1`.
+        eigspace_N : int
+            number of eigensystem components with lowest energy that all
+            operators should be restricted onto.
+        index : int
+            index of a transmon. For navigation in a Tmons structures
+            that utilizes `Transmon(...)` instances.
+
+        nonlinear_osc : bool
+            Not Implemented
+            TODO: ask Gleb, assumed fastened
+                analytical solution for eigensystem, I presume.
+        """
+        self.Ec = Ec
+        self.Ej = Ej
+        if (d is None) and (alpha is not None):
+            self.d = (1 - alpha) / (alpha + 1)
+            self.alpha = alpha
+        elif (alpha is None) and (d is not None):
+            self.d = d
+            self.alpha = (1 - d) / (1 + d)
+
+        self.phi = phi
+        self.Nc = Nc
+        self.m_dim = 2 * self.Nc + 1  # matrix dimension
+
+        self.eigspace_N = eigspace_N
+
+        # index used if transmon is embedded into connected structure
+        self.index = index
+
+        # dimension of a charge basis
+        self.space_dim = Nc * 2 + 1
+
+        # decoherence speed
+        self.gamma_long = gamma_long  # pure longitudal relaxation rate
+        self.gamma_phi = gamma_phi  # pure phase relaxation rate
+
+        self._eigsys_sol_cache: dict[TmonPars, TmonEigensystem] = {}
+
+    def clear_caches(self):
+        self._eigsys_sol_cache = {}
+
+    ''' GETTERS SECTION START '''
+
+    def get_Ns(self):
+        return self.eigspace_N
+
+    def get_index(self):
+        return self.index
+
+    ''' GETTERS SECTION END '''
+
+    ''' HELP FUNCTIONS SECTION START '''
+
+    def _phi_coeff(self, phi):
+        return np.sign(np.cos(phi/2))*np.sqrt(
+            1 + self.alpha ** 2 + 2 * self.alpha * np.cos(phi/2)
+        )
+
+    ''' HELP FUNCTIONS SECTION END '''
+
+    def calc_Hc_cb(self):
+        """
+        Calculate Hc in charge bassis.
+        Ec = 2e^2/(C h) [GHz]
 
         Returns
         -------
         qp.Qobj
         """
-        return self.calc_Hc_cb() + self.calc_Hj_cb2(phi)
+        Hc = self.Ec * qp.charge(self.Nc) ** 2
+        return Hc
 
-
-    def calc_Hj_cb2(self, phi, coef1, coef2):
+    def calc_Hj_cb(self, phiExt1, phiExt2):
         """
-        Calculate Josephson energy in charge bassis.
+        Generate Josephson energy matrix in charge bassis.
         phi = 2*pi Flux/Flux_quantum
+
+        phi: float
+            phase canonical variable
+            .math: \phi_1 = \mathbf{\Phi_e}_1 + \phi
+            \phi_2 = \mathbf{\Phi_e}_1 - \phi
+        phiExt1: float
+            External flux through simple loop that contains capacitance.
+        phiExt2: float
+            External flux through SQUID formed by JJ.
         Returns
         -------
         qp.Qobj
         """
-        import scipy.stats
-        scipy.stats.norm()
-        scalar = - self.Ej * self._phi_coeff(phi / 2) \
-                 / 2
-        phi0 = np.arctan(self.d * np.tan(phi / 2))
-        op = np.exp(-1j * phi0) * raising_op(
-            self.space_dim) + \
-             np.exp(1j * phi0) * lowering_op(self.space_dim)
-        return scalar * qp.Qobj(op)
+        small_jj_op = self.alpha/2*(
+                np.exp(phiExt1)*raising_op(self.m_dim) +
+                np.exp(-phiExt1)*lowering_op(self.m_dim)
+        )
+        big_jj_op = 1/2*(
+                np.exp(phiExt2)*raising_op(self.m_dim) +
+                np.exp(-phiExt2)*lowering_op(self.m_dim)
+        )
+
+        return self.Ej*qp.Qobj(small_jj_op + big_jj_op)
+
+    def calc_Hfull_cb(self, phiExt1, phiExt2):
+        """
+        Calculate Hamiltonian operator matrix based on class parameters.
+        Charge basis
+
+        Returns
+        -------
+        qp.Qobj
+        """
+        return self.calc_Hc_cb() + self.calc_Hj_cb(phiExt1, phiExt2)
+
+    def solve(self, case=1):
+        """
+        Solve eigensystem problem and return operators in
+
+        Returns
+        -------
+        list[TmonEigensystem]
+            `TmonEigensystem` - database entry
+        """
+        result = []
+        ctr = False
+        if isinstance(self.phi, np.ndarray) and isinstance():
+            if isinstance(self.phi, list):
+                self.phi = np.array(self.phi, dtype=float)
+            sol_keys = (TmonPars(self.Ec, self.Ej, self.alpha, phi,
+                                 self.Nc) for phi in self.phi)
+        else:
+            sol_keys = (TmonPars(self.Ec, self.Ej, self.alpha,
+                                 self.phiExt1, self.phiExt2,
+                                 self.Nc),)  # 1 entry tuple
+
+        for sol_key in sol_keys:
+            try:
+                solution = self._eigsys_sol_cache[sol_key]
+                result.append(solution)
+            except KeyError:
+                if case == 1:
+                    if not ctr:
+                        print("case 1")
+                        ctr = True
+                    H_full = self.calc_Hfull_cb(sol_key.phi)
+                else:
+                    if not ctr:
+                        print("case 2")
+                        ctr = True
+                    H_full = self.calc_Hfull_cb2(sol_key.phi)
+                n_full = qp.charge(self.Nc)
+                evals, evecs = H_full.eigenstates(sort="low")
+
+                # TODO: parallelize
+                H_op = my_transform(H_full, evecs)
+                n_op = my_transform(n_full, evecs)
+
+                H_op = H_op - H_op[0, 0] * qp.identity(self.space_dim)
+                solution = TmonEigensystem(
+                    self.Ec, self.Ej, self.alpha,
+                    phiExt1=sol_key.phiExt1,
+                    phiExt2=sol_key.phiExt2,
+                    evecs=evecs,
+                    H_op=H_op.tidyup(), n_op=n_op.tidyup(), Nc=self.Nc
+                )
+                self._eigsys_sol_cache[sol_key] = solution
+                result.append(solution)
+        if isinstance(self.phi, np.ndarray) and len(self.phi) == 1:
+            return solution
+        else:
+            return result
 
 

@@ -1,80 +1,51 @@
+from collections import namedtuple
+
 import numpy as np
 import scipy.sparse as sp
 import qutip as qp
 
 
+TmonPars = namedtuple(
+    "TmonPars",
+    ["Ec", "Ej", "alpha", "phiExt1", "phiExt2", "Nc"]
+)
+
+
 class TmonEigensystem:
-    def __init__(self, Ec=None, Ej=None, alpha=None, d=None,
-                 phi=None, evecs=None, H_op=None,
-                 n_op=None, Nc=None):
+    def __init__(self, tmon_pars: TmonPars, evecs=None, evals=None, n_op=None):
         """
-        Eigensystem solution as a class. `TmonEigensystem` consists of
-            all relevant operators and parameters describing
-            numerical problem in eigenbasis.
+        `TmonEigensystem` is the result of solving
+        eigenvalue problem for a Tmon at a particular parameter space
+        point. `TmonPars` used as a key in cache structure.
+        `TmonPars` also contains its key for convinience.
 
         Parameters
         ----------
-        Ec: float
-            Charge energy of a qubit [GHz]
-            Explicit formula (SI): e^2/(2*C*h)*1e-9, C - capacitance,
-            h - plank constant
-        Ej: float
-            energy of the largest JJ in transmon [GHz]
-            .math
-            I_k \Pni_0 / (2 * pi * h),
-            I_k - junction critical current in SI, \Phi_0 - flux quantum.
-        alpha : float
-            asymmetry parameter. I_k1/I_k2 < 1, ration of lower critical
-            current to the larger one.
-        d: float
-            asymmetry parameter, alternative to `alpha`.
-            `d = (1 - alpha)/(1 + alpha)`. Used in Koch.
-        phi: float
-            flux phase of the transmon in radians (from `0` to `2 pi`).
-            phi = 2*pi * Flux/Flux_quantum
-        Nc : int
-            Maximum absolute cooper pair number in charge basis (>=0).
-            Charge basis size is `2*Nc + 1`.
+        tmon_pars: TmonPars
+            Transmon's Hamiltonian parameters
         evecs : list[qp.Qobj]
-            list of ket objects representing eigenvectors of a problem.
-        H_op: qp.Qobj
-            Hamiltonian in its eigenbasis
+            List of ket objects representing eigenvectors of a problem.
+            Order is corresponding to `evals`.
+        evals: np.ndarray
+            list for eigenvalues ordered corresponding to `evecs`
         n_op: qp.Qobj
             cooper pair number operator in eigenbasis of a problem.
         """
-        if (alpha is not None) and (d is not None):
-            raise ValueError("only `alpha` or `d` can be supplied since "
-                             "they are in one-to-one correspondence")
-        self.Ec = Ec
-        self.Ej = Ej
-        if (alpha is not None) and (d is None):
-            self.alpha = alpha
-            self.d = (1 - alpha) / (1 + alpha)
-        elif (d is not None) and (alpha is None):
-            self.alpha = (1 - d) / (1 + d)
-            self.d = d
-        elif (d is None) and (alpha is None):
-            raise ValueError("none of the asymmetry parameters "
-                             "supplied: `d` or `alpha`")
-        self.phi = phi
-        self.evecs = evecs
-
-        self.Nc = Nc
-        self.Ns = 2*Nc+1
-        self.H_op = H_op
+        self.pars: TmonPars = tmon_pars
+        self.evecs: list[qp.Qobj] = evecs
+        self.evals: np.ndarray = evals
         self.n_op = n_op
 
     ''' GETTER FUNCTIONS SECTION START '''
 
-    def w01(self):
-        return self.H_op[1, 1] - self.H_op[0, 0]
+    def E01(self):
+        raise NotImplemented
 
-    def w12(self):
-        return self.H_op[2, 2] - self.H_op[1, 1] \
-            if len(self.H_op.shape[0]) > 2 else None
+    def E12(self):
+        raise NotImplemented
 
-    def anharm(self):
-        return self.w12() - self.w01()
+    def anharmonicity(self):
+        raise NotImplemented
 
     ''' GETTER FUNCTIONS SECTION END '''
 
@@ -83,7 +54,7 @@ def my_transform(operator, evecs, sparse=False):
     """
     Partial copy of Qobj.transform. The difference
     is this one works for members of a single Hermite space only
-    (dims problem below) yet allows to
+    (dims problem below, no support for tensor products) yet allows to
     shrink new operator to basis with less vectors.
     TODO: needs a little addition to work with several Hermite spaces (
         fix out.dims during creation)
