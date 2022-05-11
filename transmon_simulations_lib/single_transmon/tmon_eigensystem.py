@@ -72,8 +72,8 @@ class TmonEigensystem:
         """
         self.pars: TmonPars = tmon_pars
         self.evecs: list[qp.Qobj] = evecs
-        self.evals: np.ndarray = evals
-        self.n_op: qp.Qobj = None
+        self.evals: np.ndarray = evals  # evals[0] = 0 already
+        self.n_op: qp.Qobj = None  # cooper number operator in eigenbasis
 
     ''' GETTER FUNCTIONS SECTION START '''
 
@@ -84,16 +84,25 @@ class TmonEigensystem:
                 n_op, self.evecs[:truncate_N]
             )
         else:
-            return self.n_op
+            return self.n_op_eigenbasis
 
     def E01(self):
-        raise NotImplemented
+        return self.evals[1]
 
     def E12(self):
         raise NotImplemented
 
     def anharmonicity(self):
         raise NotImplemented
+
+    def g_state(self):
+        return self.evecs[0]
+
+    def e_state(self):
+        return self.evecs[1]
+
+    def f_state(self):
+        return self.evecs[2]
 
     ''' GETTER FUNCTIONS SECTION END '''
 

@@ -10,7 +10,7 @@ from .tmon_eigensystem import my_transform, TmonPars
 
 class Transmon():
     def __init__(
-            self, pars: List[TmonPars],
+            self, pars_list: List[TmonPars],
             Nc=2, res_trunc=3, index=0):
         """
         Class represents single Tmon.
@@ -21,7 +21,7 @@ class Transmon():
         parameters. Cache for eigenproblems solutions can be utilized in
         further intensive calculations.
 
-        pars : list(TmonPars)
+        pars_list : list[TmonPars]
             list of tmon parameters space point to solve eigenvalue
             problem.
         Nc : int
@@ -38,17 +38,21 @@ class Transmon():
             TODO: ask Gleb, assumed fastened
                 analytical solution for eigensystem, I presume.
         """
-        self.pars_list: List[TmonPars] = pars
-        self.Nc = Nc
+        self.pars_list: List[TmonPars] = pars_list
+
+        # numerical parameters
+        self.Nc = Nc  # maximum cooper pair number
         self.m_dim = 2 * self.Nc + 1  # matrix dimension
 
+        # truncate output to this number of
+        # dimensions
         self.res_trunc = res_trunc
 
         # index used if transmon is embedded into connected structure
         self.index = index
 
-        # dimension of a charge basis
-        self.space_dim = Nc * 2 + 1
+        # solutions for already solved parameter space points are stored
+        # in this cache
         self._eigsys_sol_cache: dict[TmonPars, TmonEigensystem] = {}
 
     def clear_caches(self):
@@ -100,12 +104,12 @@ class Transmon():
         alpha = pars.alpha
 
         small_jj_op = alpha/2*(
-                np.exp(phiExt1)*raising_op(self.m_dim) +
-                np.exp(-phiExt1)*lowering_op(self.m_dim)
+                np.exp(-1j*phiExt1)*raising_op(self.m_dim) +
+                np.exp(1j*phiExt1)*lowering_op(self.m_dim)
         )
         big_jj_op = 1/2*(
-                np.exp(phiExt2)*raising_op(self.m_dim) +
-                np.exp(-phiExt2)*lowering_op(self.m_dim)
+                np.exp(-1j*phiExt2)*raising_op(self.m_dim) +
+                np.exp(1j*phiExt2)*lowering_op(self.m_dim)
         )
 
         return Ej*qp.Qobj(small_jj_op + big_jj_op)
@@ -121,9 +125,10 @@ class Transmon():
         """
         return self.calc_Hc_cb(pars) + self.calc_Hj_cb(pars)
 
-    def solve(self):
+    def solve(self, sparse=False):
         """
-        Solve eigensystem problem.
+        Solve eigensystem problem for every point supplied during
+        construction and stored into `self.pars`.
 
         Returns
         -------
@@ -139,7 +144,9 @@ class Transmon():
             except KeyError:
                 H_full = self.calc_Hfull_cb(pars_pt)
                 n_full = qp.charge(self.Nc)
-                evals, evecs = H_full.eigenstates(sort="low")
+                evals, evecs = H_full.eigenstates(
+                    sparse=sparse, sort="low", eigvals=self.res_trunc
+                )
 
                 n_op = my_transform(n_full, evecs)
                 solution = TmonEigensystem(
