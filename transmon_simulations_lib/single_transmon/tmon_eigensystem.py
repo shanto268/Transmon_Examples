@@ -14,7 +14,24 @@ TmonPars = namedtuple(
         "phiExt1",
         "phiExt2",
         "gamma_rel",
-        "gamma_phi"
+        "gamma_phi",
+        "Amp_d",
+        "omega_d",
+        "phase_d",
+        "time"
+    ],
+    defaults=[
+        0.6,  # Ec
+        28,   # Ej
+        0.2,  # alpha
+        0.0,  # phaseExt1
+        0.0,  # phaseExt2
+        0.0,  # gamma_rel
+        0.0,  # gamma_phi
+        0.0,  # Amp_d
+        0.0,  # omega_d
+        0.0,  # phase_d
+        0.0   # time
     ]
 )
 '''
@@ -47,6 +64,14 @@ TmonPars = namedtuple(
             For lindblad operator expressed as
             `sqrt(gamma_phi) \sigma_m`.
             And lindblad entry is defiened as `2 L p L^+ - {L^+ L,p}`.
+        Amp_d : float
+            Capacitive drive coefficient
+        omega_d : float
+            drive frequency
+        phase_d : float
+            cosine drive phase
+        time : float
+            moment of time in nanoseconds
 '''
 
 
@@ -71,38 +96,39 @@ class TmonEigensystem:
             cooper pair number operator representation in eigenbasis
         """
         self.pars: TmonPars = tmon_pars
-        self.evecs: list[qp.Qobj] = evecs
-        self.evals: np.ndarray = evals  # evals[0] = 0 already
-        self.n_op: qp.Qobj = None  # cooper number operator in eigenbasis
+        self.evecs_arr: list[qp.Qobj] = evecs
+        self.evals_arr: np.ndarray = evals  # evals[0] = 0 already
+        self.n_op: list[qp.Qobj] = n_op  # cooper number operator in
+        # eigenbasis
 
     ''' GETTER FUNCTIONS SECTION START '''
 
-    def n_op(self, truncate_N=3):
+    def get_n_op(self, truncate_N=3):
         if self.n_op is None:
-            n_op = qp.charge(len(self.evals))
-            n_op_eigenbasis = my_transform(
-                n_op, self.evecs[:truncate_N]
-            )
-        else:
-            return self.n_op_eigenbasis
+            for evecs in self.evecs_arr:
+                n_op = qp.charge(len(self.evals_arr))
+                n_op_eigenbasis = my_transform(
+                    n_op, self.evecs_arr[:truncate_N]
+                )
+        return self.n_op_eigenbasis
 
     def E01(self):
-        return self.evals[1]
+        return self.evals_arr[1]
 
     def E12(self):
-        raise NotImplemented
+        return self.evals_arr[2] - self.evals_arr[1]
 
     def anharmonicity(self):
-        raise NotImplemented
+        return (self.E12() - self.E01())
 
     def g_state(self):
-        return self.evecs[0]
+        return self.evecs_arr[0]
 
     def e_state(self):
-        return self.evecs[1]
+        return self.evecs_arr[1]
 
     def f_state(self):
-        return self.evecs[2]
+        return self.evecs_arr[2]
 
     ''' GETTER FUNCTIONS SECTION END '''
 

@@ -2,8 +2,9 @@ from typing import List
 
 import numpy as np
 import qutip as qp
-from transmon_simulations_lib.custom_ops import raising_op, lowering_op
+import tqdm
 
+from transmon_simulations_lib.custom_ops import raising_op, lowering_op
 # TODO: make everything to be single package "QHSim"
 from .tmon_eigensystem import TmonEigensystem
 from .tmon_eigensystem import my_transform, TmonPars
@@ -32,11 +33,6 @@ class Transmon():
         index : int
             index of a transmon. For navigation in a Tmons structures
             that utilizes `Transmon(...)` instances.
-
-        nonlinear_osc : bool
-            Not Implemented
-            TODO: ask Gleb, assumed fastened
-                analytical solution for eigensystem, I presume.
         """
         self.pars_list: List[TmonPars] = pars_list
 
@@ -85,6 +81,7 @@ class Transmon():
         """
         Generate Josephson energy matrix in charge bassis.
         phi = 2*pi Flux/Flux_quantum
+        \cos{(\phi - \varphi_{ext})}
 
         phi: float
             phase canonical variable
@@ -114,7 +111,30 @@ class Transmon():
 
         return Ej*qp.Qobj(small_jj_op + big_jj_op)
 
-    def calc_Hfull_cb(self, pars: TmonPars):
+    def calc_Hdrive_cb(self, pars_pt: TmonPars):
+        """
+        Calculate external drive in qubit space after Mollow transform.
+        Capaciteve
+        Parameters
+        ----------
+        pars_pt : TmonPars
+            point in parameter space
+
+        Returns
+        -------
+        qp.Qobj
+            drive operator in parameter space
+        """
+        Amp_d = pars_pt.Amp_d
+        omega_d = pars_pt.omega_d
+        phase_d = pars_pt.phase_d
+        t = pars_pt.time
+        if Amp_d == 0:
+            return qp.qzero(self.m_dim)
+        Hdrive = -Amp_d*np.cos(omega_d*t + phase_d) * qp.charge(self.Nc)
+        return Hdrive
+
+    def calc_Hfull_cb(self, pars_pt: TmonPars):
         """
         Calculate Hamiltonian operator matrix based on class parameters.
         Charge basis
@@ -123,9 +143,13 @@ class Transmon():
         -------
         qp.Qobj
         """
-        return self.calc_Hc_cb(pars) + self.calc_Hj_cb(pars)
+        Hfull = self.calc_Hc_cb(pars_pt) + self.calc_Hj_cb(pars_pt)
+        if pars_pt.Amp_d != 0:
+            Hfull += self.calc_Hdrive_cb(pars_pt)
 
-    def solve(self, sparse=False):
+        return Hfull
+
+    def solve(self, sparse=False, progress=True):
         """
         Solve eigensystem problem for every point supplied during
         construction and stored into `self.pars`.
@@ -137,7 +161,12 @@ class Transmon():
         """
         result = []
 
-        for pars_pt in self.pars_list:
+        # control of progress bar appearance
+        disable = False
+        if progress is False:
+            disable = True
+
+        for pars_pt in tqdm.tqdm_notebook(self.pars_list, disable=disable):
             try:
                 solution = self._eigsys_sol_cache[pars_pt]
                 result.append(solution)
