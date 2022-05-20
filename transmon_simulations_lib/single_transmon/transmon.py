@@ -1,18 +1,25 @@
-from typing import List
+from typing import List, Callable
 
 import numpy as np
 import qutip as qp
 import tqdm
+from p_tqdm import p_tqdm
+from functools import partial
+import os
 
 from transmon_simulations_lib.custom_ops import raising_op, lowering_op
 # TODO: make everything to be single package "QHSim"
 from .tmon_eigensystem import TmonEigensystem
 from .tmon_eigensystem import my_transform, TmonPars
+# https://docs.python.org/3/library/multiprocessing.html#multiprocessing.cpu_count
+NUM_CPUS = os.cpu_count()
+print("Transmon.py module: cpu number detected", NUM_CPUS)
+
 
 class Transmon():
     def __init__(
             self, pars_list: List[TmonPars],
-            Nc=2, res_trunc=3, index=0):
+            Nc=2, res_trunc=5, index=0):
         """
         Class represents single Tmon.
         It can calculate its spectrum in charge basis and represent
@@ -70,6 +77,7 @@ class Transmon():
 
     ''' HELP FUNCTIONS SECTION END '''
 
+    '''  QUBIT DIAGONALIZATION AS A STANDALONE DEVICE SECTION START '''
     def calc_Hc_cb(self, pars: TmonPars):
         """
         Calculate Hc in charge bassis.
@@ -105,21 +113,63 @@ class Transmon():
         Ej = pars.Ej
         alpha = pars.alpha
 
-        small_jj_op = alpha/2*(
+        small_jj_op = alpha*(
                 np.exp(-1j*phiExt1)*raising_op(self.m_dim) +
                 np.exp(1j*phiExt1)*lowering_op(self.m_dim)
         )
-        big_jj_op = 1/2*(
+        big_jj_op = (
                 np.exp(-1j*phiExt2)*raising_op(self.m_dim) +
                 np.exp(1j*phiExt2)*lowering_op(self.m_dim)
         )
+        # 1/2 is transerred here from `small_jj_op` and `big_jj_op` for a
+        # lil optimization
+        return Ej/2*qp.Qobj(small_jj_op + big_jj_op)
 
-        return Ej*qp.Qobj(small_jj_op + big_jj_op)
+    def calc_Hinternal_cb(self, pars_pt: TmonPars):
+        """
+        Calculate Hamiltonian operator matrix based on class
+        parameters. Does not incude any kind of external objects coupling.
+        Calculations and result returned are in charge basis.
+
+        Returns
+        -------
+        qp.Qobj
+        """
+        Hinternal = self.calc_Hc_cb(pars_pt) + self.calc_Hj_cb(pars_pt)
+        return Hinternal
+
+    def solve_internal(self, pars_pt: TmonEigensystem, sparse=False):
+        """
+        Solve eigensystem problem for a given point in parameter space.
+        Does not include any external couplings.
+        Calculations and result returned both are in charge basis.
+
+
+        Parameters
+        ----------
+        pars_pt : TmonEigensystem
+        sparse : bool
+            Solver regime
+
+        Returns
+        -------
+        TmonEigensystem
+            `TmonEigensystem` class containing solution in charge basis.
+        """
+        solution = self._solve_eigsys_problem(
+            pars_pt, self.calc_Hinternal_cb,
+            sparse=sparse
+        )
+
+    '''  QUBIT DIAGONALIZATION AS A STANDALONE DEVICE SECTION END '''
 
     def calc_Hdrive_cb(self, pars_pt: TmonPars):
         """
-        Calculate external drive in qubit space after Mollow transform.
-        Capaciteve
+        Calculate capacitive external drive in qubit space after Mollow
+        transform.
+        Calculates only interaction part. Does not include drive field
+        energy and Ec modification terms.
+
         Parameters
         ----------
         pars_pt : TmonPars
@@ -128,7 +178,7 @@ class Transmon():
         Returns
         -------
         qp.Qobj
-            drive operator in parameter space
+            drive operator in charge basis
         """
         Amp_d = pars_pt.Amp_d
         omega_d = pars_pt.omega_d
@@ -142,61 +192,123 @@ class Transmon():
     def calc_Hfull_cb(self, pars_pt: TmonPars):
         """
         Calculate Hamiltonian operator matrix based on class parameters.
-        Charge basis
+        Calculated and returned an the charge basis.
+
+        Only supports 1 external drive at the moment.
 
         Returns
         -------
         qp.Qobj
         """
-        Hfull = self.calc_Hc_cb(pars_pt) + self.calc_Hj_cb(pars_pt)
+        Hfull = self.calc_Hinternal_cb(pars_pt)
         if pars_pt.Amp_d != 0:
             Hfull += self.calc_Hdrive_cb(pars_pt)
 
         return Hfull
 
-    def solve(self, rwa=False, sparse=False, progress=True):
+    def calc_HdriveRWA_eb(self, pars_pt: TmonPars):
         """
-        Solve eigensystem problem for every point supplied during
-        construction and stored into `self.pars`.
+        Calculate Hamiltonian operator matrix based on class
+        parameters.
+        Uses `self.solve_internal()` and returned an the charge basis.
+
+        Only supports 1 external drive at the moment.
 
         Returns
         -------
+        qp.Qobj
+        """
+        # solution in cooper basis
+        solution_cb = self.solve_internal()
+
+    def solve(self, rwa=False, sparse=False):
+        """
+        Solve eigensystem problem for every point in supplied during
+        construction and stored into `self.pars`.
+
         rwa : bool
             if True, returns solution in Rotating Wave Approximation.
             if False, return solution without approximations.
+
+        Parameters
+        ----------
+        rwa : bool
+            Whether or not to utilize Rotating Wave Approximation for
+            solution. RWA applied as transforming to interaction
+            picture with `H0 = diag(0, -\omega_q, -2*\omega_q, ...,
+            -n\omega_q)` in eigenbasis.
+            So, before moving towards interaction picture,
+            diagonalization of the qubit as a standalone device is
+            calculated using `self.solve_internal(...)`.
+        sparse : bool
+
+        Returns
+        -------
         list[TmonEigensystem]
-            `TmonEigensystem` - database entry
+            List of solutions. Basis is included in returned structe.
+            If `rwa=True` supplied, than solution is in the qubit's
+            internal eigenbasis obtained by calling
+            `self.solve_internal()`.
         """
         result = []
 
-        # control of progress bar appearance
-        disable = False
-        if progress is False:
-            disable = True
+        if rwa is True:
+        else:
+            H_generator = self.calc_Hfull_cb
+            # Default behaviour, solve for every point without any
+            # assumptions
 
-        for pars_pt in tqdm.tqdm_notebook(self.pars_list, disable=disable):
-            try:
-                solution = self._eigsys_sol_cache[pars_pt]
-                result.append(solution)
-            except KeyError:
-                H_full = self.calc_Hfull_cb(pars_pt)
-                n_full = qp.charge(self.Nc)
-                evals, evecs = H_full.eigenstates(
-                    sparse=sparse, sort="low", eigvals=self.res_trunc
-                )
-
-                n_op = my_transform(n_full, evecs)
-                solution = TmonEigensystem(
-                    self.pars_list,
-                    evecs=evecs,
-                    evals=evals - evals[0],
-                    n_op=n_op.tidyup()
-                )
-                self._eigsys_sol_cache[pars_pt] = solution
-                result.append(solution)
+        # parallelized solver
+        for solution in p_tqdm.p_imap(
+                partial(
+                    self._solve_eigsys_problem,
+                    H_generator=H_generator,
+                    sparse=sparse
+                ),
+                self.pars_list,
+                num_cpus=NUM_CPUS
+        ):
+            result.append(solution)
 
         return result
 
+    def _solve_eigsys_problem(self,
+                              pars_pt: TmonPars,
+                              H_generator: Callable,
+                              sparse=True):
+        """
+        Diagonalizes H_generator(pars_pt, sparse=sparse) and returns result
+        as `TmonEigensystem`.
+        Parameters
+        ----------
+        H_generator
+        pars_pt
+        sparse
+
+        Returns
+        -------
+
+        """
+        try:  # looking in cache for solution
+            solution = self._eigsys_sol_cache[pars_pt]
+        except KeyError:  # solve eigenproblem and store into cache
+            Hfull = H_generator(pars_pt)
+            n_full = qp.charge(self.Nc)
+            evals, evecs = Hfull.eigenstates(
+                sparse=sparse, sort="low", eigvals=self.res_trunc
+            )
+
+            n_op = my_transform(n_full, evecs)
+            solution = TmonEigensystem(
+                self.pars_list,
+                evecs=evecs,
+                evals=evals - evals[0],
+                n_op=n_op.tidyup()
+            )
+
+            self._eigsys_sol_cache[pars_pt] = solution
+
+        return solution
     ''' for using in `qp.mcsolve` and `qp.mesolve` '''
 
 

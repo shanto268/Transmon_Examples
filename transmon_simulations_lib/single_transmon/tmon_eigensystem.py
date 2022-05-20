@@ -1,8 +1,14 @@
 from collections import namedtuple
+from enum import Enum
 
 import numpy as np
 import scipy.sparse as sp
 import qutip as qp
+
+
+class TMON_BASIS(Enum):
+    COOPER_PAIR_BASIS = "COOPER_PAIR_BASIS"
+    INTERNAL_EIGENBASIS = "INTERNAL_EIGENBASIS"
 
 
 TmonPars = namedtuple(
@@ -18,7 +24,8 @@ TmonPars = namedtuple(
         "Amp_d",
         "omega_d",
         "phase_d",
-        "time"
+        "time",
+        "basis"
     ],
     defaults=[
         0.6,  # Ec
@@ -31,9 +38,12 @@ TmonPars = namedtuple(
         0.0,  # Amp_d
         0.0,  # omega_d
         0.0,  # phase_d
-        0.0   # time
+        0.0,  # time
+        TMON_BASIS.COOPER_PAIRS_BASIS  # Hilbert space basis
     ]
 )
+
+
 '''
  Parameters
         ----------
@@ -72,16 +82,22 @@ TmonPars = namedtuple(
             cosine drive phase
         time : float
             moment of time in nanoseconds
+        basis : TMON_BASIS
+            Hamilton space basis
+            Default TMON_BASIS.COOPER_PAIRS_BASIS
 '''
 
-
 class TmonEigensystem:
-    def __init__(self, tmon_pars: TmonPars, evecs=None, evals=None, n_op=None):
+    def __init__(self,
+                 tmon_pars: TmonPars,
+                 evecs=None, evals=None,
+                 n_op=None):
         """
         `TmonEigensystem` is the result of solving
         eigenvalue problem for a Tmon at a particular parameter space
-        point. `TmonPars` used as a key in cache structure.
-        `TmonPars` also contains its key for convinience.
+        point. Default basis is cooper pair number basis.
+        `TmonPars` used as a key in cache structure.
+        `TmonEigensystem` also contains its key `TmonPars` for convinience.
 
         Parameters
         ----------
@@ -94,23 +110,28 @@ class TmonEigensystem:
             list for eigenvalues ordered corresponding to `evecs`
         n_op: qp.Qobj
             cooper pair number operator representation in eigenbasis
+        basis : TMON_BASIS
+            indicates basis that objects are represented at.
+            Default - cooper pair basis.
         """
         self.pars: TmonPars = tmon_pars
         self.evecs_arr: list[qp.Qobj] = evecs
-        self.evals_arr: np.ndarray = evals  # evals[0] = 0 already
-        self.n_op: list[qp.Qobj] = n_op  # cooper number operator in
-        # eigenbasis
+        self.evals_arr: np.ndarray = evals
+        self.n_op: list[qp.Qobj] = n_op
+        # basis where `self.evecs_arr` and `self.n_op` are represented
+        self.basis: TMON_BASIS = tmon_pars.basis
 
     ''' GETTER FUNCTIONS SECTION START '''
 
     def get_n_op(self, truncate_N=3):
         if self.n_op is None:
-            for evecs in self.evecs_arr:
-                n_op = qp.charge(len(self.evals_arr))
-                n_op_eigenbasis = my_transform(
-                    n_op, self.evecs_arr[:truncate_N]
-                )
-        return self.n_op_eigenbasis
+            n_op = qp.charge(len(self.evals_arr))
+            n_op_eigenbasis = my_transform(
+                n_op, self.evecs_arr[:truncate_N]
+            )
+            return n_op_eigenbasis
+        else:
+            return self.n_op
 
     def E01(self):
         return self.evals_arr[1]
