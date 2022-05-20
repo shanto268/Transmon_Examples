@@ -51,6 +51,11 @@ class Transmon():
         # in this cache
         self._eigsys_sol_cache: dict[TmonPars, TmonEigensystem] = {}
 
+        # whether or not solutions sequence is in time domain
+        # activates if supplied `TmonPars.Amp_d != 0`
+        # also requires `TmonPars.t` to be supplied.
+        self._time_domain = False
+
     def clear_caches(self):
         self._eigsys_sol_cache = {}
 
@@ -149,13 +154,16 @@ class Transmon():
 
         return Hfull
 
-    def solve(self, sparse=False, progress=True):
+    def solve(self, rwa=False, sparse=False, progress=True):
         """
         Solve eigensystem problem for every point supplied during
         construction and stored into `self.pars`.
 
         Returns
         -------
+        rwa : bool
+            if True, returns solution in Rotating Wave Approximation.
+            if False, return solution without approximations.
         list[TmonEigensystem]
             `TmonEigensystem` - database entry
         """
