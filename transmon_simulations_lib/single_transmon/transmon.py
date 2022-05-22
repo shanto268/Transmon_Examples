@@ -156,10 +156,12 @@ class Transmon():
         TmonEigensystem
             `TmonEigensystem` class containing solution in charge basis.
         """
-        solution = self._solve_eigsys_problem(
+        solution_internal = self._solve_eigsys_problem(
             pars_pt, self.calc_Hinternal_cb,
-            sparse=sparse
+            sparse=sparse,
         )
+
+        return solution_internal
 
     '''  QUBIT DIAGONALIZATION AS A STANDALONE DEVICE SECTION END '''
 
@@ -219,7 +221,8 @@ class Transmon():
         qp.Qobj
         """
         # solution in cooper basis
-        solution_cb = self.solve_internal()
+        solution_intenal_cb = self.solve_internal(pars_pt)
+        return solution_intenal_cb
 
     def solve(self, rwa=False, sparse=False):
         """
@@ -253,6 +256,8 @@ class Transmon():
         result = []
 
         if rwa is True:
+            # internal eigenbasis
+            H_generator = self.calc_Hfull_RWA_eb
         else:
             H_generator = self.calc_Hfull_cb
             # Default behaviour, solve for every point without any
@@ -275,7 +280,7 @@ class Transmon():
     def _solve_eigsys_problem(self,
                               pars_pt: TmonPars,
                               H_generator: Callable,
-                              sparse=True):
+                              sparse=True, res_trunc=None):
         """
         Diagonalizes H_generator(pars_pt, sparse=sparse) and returns result
         as `TmonEigensystem`.
@@ -289,13 +294,19 @@ class Transmon():
         -------
 
         """
+        if res_trunc is None:
+            # argument passed can override
+            # internal settings for this `one-time` calculation
+            res_trunc = self.res_trunc
+
         try:  # looking in cache for solution
             solution = self._eigsys_sol_cache[pars_pt]
         except KeyError:  # solve eigenproblem and store into cache
             Hfull = H_generator(pars_pt)
             n_full = qp.charge(self.Nc)
             evals, evecs = Hfull.eigenstates(
-                sparse=sparse, sort="low", eigvals=self.res_trunc
+                sparse=sparse, sort="low",
+                eigvals=res_trunc
             )
 
             n_op = my_transform(n_full, evecs)
